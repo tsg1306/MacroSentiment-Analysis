@@ -315,23 +315,40 @@ with tab1:
         with col_weak:
             st.subheader("Weak Signals")
             if not corpus_df.empty:
-                corpus_ents = set(corpus_df["entity"].unique())
-                tweet_kws = set()
-                for kw in {k.lower() for kws in THEME_MAP.values() for k in kws}:
+                # Only consider tracked macro keywords (from THEMES), not all NER entities
+                all_tracked_kws = {kw.lower() for kws in THEME_MAP.values() for kw in kws}
+                # Which tracked keywords appear in corpus?
+                corpus_tracked = set()
+                corpus_scores = {}
+                for kw in all_tracked_kws:
+                    kw_mask = corpus_df["entity"].str.lower() == kw
+                    if kw_mask.any():
+                        corpus_tracked.add(kw)
+                        corpus_scores[kw] = corpus_df.loc[kw_mask, "score"].mean()
+                    elif corpus_df["entity"].str.lower().str.contains(kw, na=False, regex=False).any():
+                        corpus_tracked.add(kw)
+                        corpus_scores[kw] = corpus_df.loc[corpus_df["entity"].str.lower().str.contains(kw, na=False, regex=False), "score"].mean()
+                # Which tracked keywords have low tweet coverage?
+                tweet_covered = set()
+                for kw in all_tracked_kws:
                     mask = tweets_df["text"].str.lower().str.contains(kw, na=False, regex=False)
-                    if mask.sum() >= 3:
-                        tweet_kws.add(kw)
-                weak = sorted(corpus_ents - tweet_kws)
+                    if mask.sum() >= 5:
+                        tweet_covered.add(kw)
+                # Weak = in corpus tracked but low/no tweet coverage
+                weak = sorted(corpus_tracked - tweet_covered, key=lambda k: abs(corpus_scores.get(k, 0)), reverse=True)
                 if weak:
                     for w in weak[:5]:
+                        score = corpus_scores.get(w, 0)
+                        direction = "bullish" if score > 0.05 else "bearish" if score < -0.05 else "neutral"
+                        color = "#22c55e" if direction == "bullish" else "#ef4444" if direction == "bearish" else "#94a3b8"
                         st.markdown(
-                            f'<div style="border-left:4px solid #6366f1;padding:6px 12px;margin:4px 0;'
+                            f'<div style="border-left:4px solid {color};padding:6px 12px;margin:4px 0;'
                             f'background:rgba(99,102,241,0.05);border-radius:4px">'
-                            f'<b>{w}</b> — in corpus, low tweet volume</div>',
+                            f'<b>{w.upper()}</b> — {direction} in corpus ({score:+.2f}), low tweet volume</div>',
                             unsafe_allow_html=True
                         )
                 else:
-                    st.info("All corpus entities have tweet coverage.")
+                    st.info("All tracked entities have tweet coverage.")
             else:
                 st.info("Ingest corpus to detect weak signals.")
 
