@@ -32,7 +32,7 @@ python scripts/ingest_corpus.py
 # -> Duree : ~3 min (NER spaCy + sentence-transformers embeddings)
 
 # 5. Lancer le dashboard
-streamlit run dashboard/app.py
+python -m streamlit run dashboard/app.py
 ```
 
 ## Ce que fait le prototype
