@@ -812,6 +812,11 @@ Voir CLAUDE.md pour la spec complète.
 
 ---
 
+## Repository GitHub
+**URL :** https://github.com/tsg1306/MacroSentiment-Analysis
+
+---
+
 ## 🔄 SUIVI D'IMPLÉMENTATION — Redesign 2026-04-02
 > **Reprendre ici si la session est coupée.** Plan complet : `docs/superpowers/plans/2026-04-02-macro-intel-implementation.md`
 > Spec complète : `docs/superpowers/specs/2026-04-02-macro-intel-redesign.md`
@@ -824,12 +829,12 @@ Voir CLAUDE.md pour la spec complète.
 | 0 | Livrables texte (notes, CLAUDE.md, README, DOCUMENTATION) | `notes_choix_techniques.md`, `README.md`, `DOCUMENTATION.md` | ✅ DONE |
 | 1 | Dépendances | `requirements.txt` | ✅ DONE |
 | 2 | DB — table `corpus_ingested` | `shared/db/database.py` | ✅ DONE |
-| 3 | CSV backend | `module1_twitter/twitter/csv_backend.py`, `client.py` | ⬜ TODO |
+| 3 | CSV backend | `module1_twitter/twitter/csv_backend.py`, `client.py` | ✅ DONE |
 | 4 | Corpus Store (ChromaDB) | `module2_nlp/analysis/corpus_store.py` | ⬜ TODO |
 | 5 | Script ingest PDFs | `scripts/ingest_corpus.py` | ⬜ TODO |
-| 6 | BERTopic wrapper | `module2_nlp/analysis/topic_model.py` | ⬜ TODO |
-| 7 | Consensus/Divergence | `module2_nlp/analysis/consensus.py` | ⬜ TODO |
-| 8 | Cross-source alignment | `module2_nlp/analysis/cross_source.py` | ⬜ TODO |
+| 6 | BERTopic wrapper | `module2_nlp/analysis/topic_model.py` | ✅ DONE |
+| 7 | Consensus/Divergence | `module2_nlp/analysis/consensus.py` | ✅ DONE |
+| 8 | Cross-source alignment | `module2_nlp/analysis/cross_source.py` | ✅ DONE |
 | 9 | Dashboard Tab 1 — Macro Digest | `dashboard/app.py` | ⬜ TODO |
 | 10 | Dashboard Tab 2 — Tweet Intelligence | `dashboard/app.py` | ⬜ TODO |
 | 11 | Dashboard Tab 3 — Corpus Analysis | `dashboard/app.py` | ⬜ TODO |
