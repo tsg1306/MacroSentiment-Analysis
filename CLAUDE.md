@@ -852,8 +852,21 @@ Voir CLAUDE.md pour la spec complète.
 Si une tâche échoue, noter ❌ et ajouter une ligne "Erreur:" avec le message d'erreur.
 
 ### Contexte données réelles
-- `data_tweet/financial_juice_tweets.csv` : 607 tweets FinancialJuice (Mar 28–31 2026), colonnes: date, author_name, content
+- `data_tweet/financial_juice_tweets.csv` : ~492 tweets exploitables (607 lignes brutes dont ~110 suites de lignes multi-line + ~5 URLs filtrées), colonnes: date, author_name, content
 - `data_corpus/*.pdf` : 14 PDFs macro (Goldman Sachs, BofA, Macquarie, Natixis, SEB, Alexander Campbell, Cavendish, DBS, Richard Bexelius, Michael Howell, Canaccord x2, Unknown)
 - ChromaDB persisté dans : `shared/db/chroma/`
 - SQLite : `shared/db/sentiment.db`
+
+---
+
+### ⚠️ Modifications & Fonctionnalités Annulées
+
+| Fonctionnalité | Statut | Raison |
+|---------------|--------|--------|
+| HDBSCAN clustering (BERTopic) | ❌ Remplacé par KMeans | Pas de wheel précompilé pour Python 3.14/Windows. BERTopic utilise `KMeans(n_clusters=8)` de sklearn à la place. Impact : topics moins adaptatifs (N fixe) mais fonctionnel. Extension : installer MSVC Build Tools + `pip install hdbscan` pour revenir à HDBSCAN. |
+| Ollama / LLM local Q&A | ⏳ Non implémenté (prévu TODO) | Hors scope 6h. Architecture ChromaDB prête — ajouter `langchain + ollama` suffit. |
+| Signal extractor pondéré (log followers) | 🔄 Désactivé pour CSV backend | Tous les tweets FinancialJuice = même auteur, followers_count=0. Pondération inutile. Le signal est calculé comme moyenne simple des scores de sentiment. |
+| Twitter mock_backend | 🔄 Non exposé dans nouveau dashboard | Conservé dans le code mais le backend "mock" n'est plus affiché dans l'UI. Remplacé par CSV réel. |
+| mock_documents.py (6 docs synthétiques) | 🔄 Non utilisé | Remplacé par les 14 vrais PDFs dans data_corpus/. Fichier conservé pour compatibilité. |
+| Tabs Twitter Live + Twitter Backtest (anciens) | 🔄 Restructurés | Fusionnés dans nouveaux tabs Macro Digest + Tweet Intelligence + Backtest unique. |
 - "Scalabilité ?" → Remplacer SQLite par PostgreSQL en changeant la connection string. Ajouter un job scheduler (APScheduler) pour le scraping automatique toutes les 5min
