@@ -11,11 +11,12 @@ Deux sources : 607 tweets FinancialJuice (données réelles) + 14 PDFs macro (Go
 | DB SQLite (5 tables + CRUD) | ✅ DONE |
 | Shared NLP — VADER + FinBERT | ✅ DONE |
 | Backtest Engine (yfinance + AV) | ✅ DONE |
-| Twitter — CSV backend (FinancialJuice) | ⬜ TODO |
-| Corpus — Ingest PDFs (ChromaDB + SQLite) | ⬜ TODO |
-| Analysis — BERTopic topic modeling | ⬜ TODO |
-| Analysis — Consensus/Divergence detection | ⬜ TODO |
-| Analysis — Cross-source alignment | ⬜ TODO |
+| Twitter — CSV backend (FinancialJuice) | ✅ DONE |
+| Corpus — ChromaDB store (semantic search) | ✅ DONE |
+| Corpus — Ingest PDFs (ChromaDB + SQLite) | ✅ DONE |
+| Analysis — BERTopic topic modeling | ✅ DONE |
+| Analysis — Consensus/Divergence detection | ✅ DONE |
+| Analysis — Cross-source alignment | ✅ DONE |
 | Dashboard — Tab Macro Digest | ⬜ TODO |
 | Dashboard — Tab Tweet Intelligence | ⬜ TODO |
 | Dashboard — Tab Corpus Analysis | ⬜ TODO |

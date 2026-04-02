@@ -85,7 +85,7 @@
 
 ### `database.py` — SQLAlchemy ORM + CRUD
 
-**5 tables ORM :**
+**6 tables ORM :**
 
 | Table | PK | Colonnes cles |
 |---|---|---|
@@ -94,6 +94,7 @@
 | `documents` | `id` (TEXT, SHA256) | title, source, doc_type, published_at, char_count |
 | `entity_sentiments` | `id` (AUTO) | document_id (FK), entity, entity_type, context_text, sentiment_score, confidence |
 | `document_signals` | `id` (AUTO) | document_id (FK), entity, signal_value, mention_count, alert |
+| `corpus_ingested` | `filename` (TEXT) | ingested_at — trace les PDFs deja traites par ingest_corpus.py |
 
 **Fonctions CRUD :**
 
@@ -110,6 +111,8 @@
 | `get_tweet_signals(asset?)` | Signaux Twitter tries par timestamp |
 | `get_doc_signals(entity?, doc_type_filter?)` | Signaux documents filtres |
 | `get_all_entities()` | Liste unique des entites (pour selectbox Tab 4) |
+| `get_ingested_files()` | Retourne `set` des filenames deja traites par ingest_corpus.py |
+| `mark_file_ingested(filename)` | Marque un PDF comme ingere (idempotent sur PK) |
 
 ---
 
@@ -229,3 +232,60 @@ Methode abstraite `parse(source, **kwargs) -> dict` avec format obligatoire : `{
 ### `database.py`
 
 Simple re-export des fonctions de `shared.db.database` : `init_db`, `save_document`, `save_entity_sentiment`, `save_doc_signal`, `get_doc_signals`, `get_all_entities`. Raccourci d'import pour le module 2.
+
+---
+
+## 13. `module2_nlp/analysis/`
+
+### `corpus_store.py` — ChromaDB wrapper
+
+Stockage et recherche semantique des chunks corpus. Persist directory : `shared/db/chroma/`. Embeddings : `all-MiniLM-L6-v2` (384 dims).
+
+| Fonction | Description |
+|---|---|
+| `_get_embed_model()` | Singleton SentenceTransformer('all-MiniLM-L6-v2') |
+| `_get_collection()` | Retourne collection ChromaDB `corpus_chunks` (cosine space), creee si inexistante |
+| `ingest_chunks(chunks, metadatas, doc_id) -> int` | Embed + upsert dans ChromaDB. IDs : `{doc_id}_chunk_{i}`. Batch 100. Idempotent |
+| `semantic_search(query, n_results=5, where=None) -> list[dict]` | Recherche semantique. Retourne `{text, source, doc_type, similarity, doc_id}`. Support filtre metadata |
+| `get_corpus_theme_embedding(keywords) -> np.ndarray\|None` | Embedding moyen des chunks matchant les keywords (top 20, cosine dist < 0.8). Utilise par cross_source.py |
+| `get_collection_count() -> int` | Nombre de chunks en collection |
+| `delete_collection()` | Supprime la collection (pour --force re-ingest) |
+
+### `topic_model.py` — BERTopic wrapper
+
+| Fonction | Description |
+|---|---|
+| `fit_tweet_topics(texts, n_topics=8) -> tuple` | Fit BERTopic avec KMeans (HDBSCAN indisponible). Retourne `(topic_model, topics_list, topic_labels_dict)` |
+| `get_topic_barchart(topic_model, top_n=8) -> Figure\|None` | Plotly barchart des top keywords par topic |
+| `get_topic_map(topic_model) -> Figure\|None` | Plotly scatter 2D des topics |
+
+### `consensus.py` — Consensus/Divergence detection
+
+| Fonction | Description |
+|---|---|
+| `classify_tweet(text) -> dict` | Classification par marqueurs lexicaux. Retourne `{label, consensus_score, divergence_score, signal_score}`. Labels : consensus/divergence/signal_faible/neutral |
+| `detect_divergences(entity_signals, threshold=0.4) -> list[dict]` | Divergences inter-sources (delta score > threshold). Retourne `{entity, doc_a, score_a, doc_b, score_b, delta}` trie par delta desc |
+| `detect_consensus(entity_signals, min_sources=2, max_std=0.20, min_abs_mean=0.25) -> list[dict]` | Consensus inter-sources (faible std, signal fort). Retourne `{entity, mean_score, std, n_sources, direction}` |
+
+### `cross_source.py` — Alignement tweets vs corpus
+
+| Fonction | Description |
+|---|---|
+| `compute_theme_alignment(keywords, tweet_texts, corpus_theme_emb) -> float\|None` | Cosine similarity entre mean(tweet embeddings) et corpus embedding pour un theme. Retourne [0,1] ou None si < 3 tweets matchent |
+| `get_all_theme_alignments(tweet_texts) -> dict` | Alignement pour les 7 themes predefinis (Oil, Gold, Fed, Geopolitics, Equities, China, ECB). Utilise ChromaDB via corpus_store |
+
+---
+
+## 14. `scripts/`
+
+### `ingest_corpus.py` — CLI ingest PDFs
+
+Usage : `python scripts/ingest_corpus.py [--force] [--model vader|finbert]`
+
+| Fonction | Description |
+|---|---|
+| `guess_doc_type(filename) -> str` | Heuristique filename -> doc_type (research_note, news). Patterns : Weekly/Wrap -> research_note, inflation/war/gold -> news |
+| `clear_corpus_ingested_table()` | Vide la table corpus_ingested (utilise avec --force) |
+| `ingest(force, model)` | Pipeline principal : pour chaque PDF dans data_corpus/, parse -> chunk -> ChromaDB (ingest_chunks) -> NLP pipeline (NER+sentiment -> SQLite) -> mark_file_ingested. Idempotent sans --force |
+
+**Sortie type :** 14 PDFs, ~630 chunks, ~2372 entites extraites.

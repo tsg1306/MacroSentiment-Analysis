@@ -830,8 +830,8 @@ Voir CLAUDE.md pour la spec complète.
 | 1 | Dépendances | `requirements.txt` | ✅ DONE |
 | 2 | DB — table `corpus_ingested` | `shared/db/database.py` | ✅ DONE |
 | 3 | CSV backend | `module1_twitter/twitter/csv_backend.py`, `client.py` | ✅ DONE |
-| 4 | Corpus Store (ChromaDB) | `module2_nlp/analysis/corpus_store.py` | ⬜ TODO |
-| 5 | Script ingest PDFs | `scripts/ingest_corpus.py` | ⬜ TODO |
+| 4 | Corpus Store (ChromaDB) | `module2_nlp/analysis/corpus_store.py` | ✅ DONE |
+| 5 | Script ingest PDFs | `scripts/ingest_corpus.py` | ✅ DONE |
 | 6 | BERTopic wrapper | `module2_nlp/analysis/topic_model.py` | ✅ DONE |
 | 7 | Consensus/Divergence | `module2_nlp/analysis/consensus.py` | ✅ DONE |
 | 8 | Cross-source alignment | `module2_nlp/analysis/cross_source.py` | ✅ DONE |

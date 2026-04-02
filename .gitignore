@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+shared/db/sentiment.db
+shared/db/chroma/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
