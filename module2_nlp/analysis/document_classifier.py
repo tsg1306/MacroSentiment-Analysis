@@ -34,10 +34,15 @@ INVESTOR_MARKERS = [
 ]
 
 EXPLICIT_TRADE_MARKERS = [
-    "buy ","sell ","overweight","underweight"," long ","short ",
-    "target price","price target"," tp ","upgrade","downgrade",
-    "add to position","trim position","initiate","reiterate buy",
-    "reiterate sell","strong buy","strong sell",
+    "we buy","we sell","recommend buy","recommend sell",
+    "buy rating","sell rating","strong buy","strong sell",
+    "overweight","underweight",
+    "go long","go short","remain long","remain short",
+    "target price","price target"," tp ",
+    "upgrade to","downgrade to","upgrade from","downgrade from",
+    "add to position","trim position","initiate coverage",
+    "reiterate buy","reiterate sell","reiterate overweight",
+    "outperform","market perform","underperform",
 ]
 
 IMPLICIT_TRADE_MARKERS = [

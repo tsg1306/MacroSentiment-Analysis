@@ -206,47 +206,67 @@ with tab1:
 
         st.divider()
 
-        # ── Heatmap + Digest ─────────────────────────────────────────────────
-        col_heat, col_digest = st.columns([3, 2])
+        # ── Heatmap (full width) ─────────────────────────────────────────────
+        st.subheader("Entity x Source Heatmap")
+        heatmap_pivot = build_entity_heatmap(tweets_df, corpus_df)
+        if heatmap_pivot.empty:
+            st.info("Run `python scripts/ingest_corpus.py` first.")
+        else:
+            fig_heat = px.imshow(
+                heatmap_pivot,
+                color_continuous_scale="RdYlGn",
+                color_continuous_midpoint=0,
+                zmin=-1, zmax=1,
+                aspect="auto",
+                title="Sentiment score per entity & source (red=bearish, green=bullish)",
+            )
+            fig_heat.update_layout(height=550, margin=dict(t=40,b=80))
+            fig_heat.update_xaxes(tickangle=45)
+            st.plotly_chart(fig_heat, use_container_width=True)
 
-        with col_heat:
-            st.subheader("Entity x Source Heatmap")
-            heatmap_pivot = build_entity_heatmap(tweets_df, corpus_df)
-            if heatmap_pivot.empty:
-                st.info("Run `python scripts/ingest_corpus.py` first.")
+        st.divider()
+
+        # ── Digest — 3 columns ───────────────────────────────────────────────
+        col_cons, col_trades, col_weak = st.columns(3)
+
+        with col_cons:
+            st.subheader("Consensus & Divergences")
+
+            st.markdown("##### Consensus Views")
+            if consensus_list:
+                for c in consensus_list[:4]:
+                    direction = "BULLISH" if c["direction"] == "bullish" else "BEARISH"
+                    color = "#22c55e" if c["direction"] == "bullish" else "#ef4444"
+                    st.markdown(
+                        f'<div style="border-left:4px solid {color};padding:6px 12px;margin:4px 0;'
+                        f'background:rgba(255,255,255,0.03);border-radius:4px">'
+                        f'<b>{c["entity"].upper()}</b> — {direction}<br>'
+                        f'<span style="color:#888;font-size:0.85em">'
+                        f'mean={c["mean_score"]:+.2f} | {c["n_sources"]} sources | std={c["std"]:.2f}</span>'
+                        f'</div>', unsafe_allow_html=True
+                    )
             else:
-                fig_heat = px.imshow(
-                    heatmap_pivot,
-                    color_continuous_scale="RdYlGn",
-                    color_continuous_midpoint=0,
-                    zmin=-1, zmax=1,
-                    aspect="auto",
-                    title="Sentiment score per entity & source (red=bearish, green=bullish)",
-                )
-                fig_heat.update_layout(height=520, margin=dict(t=40,b=10))
-                fig_heat.update_xaxes(tickangle=45)
-                st.plotly_chart(fig_heat, use_container_width=True)
+                st.info("No strong consensus detected.")
 
-        with col_digest:
-            st.subheader("Digest")
+            st.markdown("##### Divergences")
+            if divergences:
+                for d in divergences[:3]:
+                    st.markdown(
+                        f'<div style="border-left:4px solid #f59e0b;padding:6px 12px;margin:4px 0;'
+                        f'background:rgba(255,255,255,0.03);border-radius:4px">'
+                        f'<b>{d["entity"].upper()}</b><br>'
+                        f'<span style="color:#22c55e">{d["doc_a"]} ({d["score_a"]:+.2f})</span> vs '
+                        f'<span style="color:#ef4444">{d["doc_b"]} ({d["score_b"]:+.2f})</span> '
+                        f'<span style="color:#888">| delta={d["delta"]:.2f}</span>'
+                        f'</div>', unsafe_allow_html=True
+                    )
+            else:
+                st.info("No major divergences.")
 
-            # Consensus
-            st.markdown("**Consensus Views**")
-            for c in consensus_list[:3]:
-                icon = "+" if c["direction"] == "bullish" else "-"
-                st.info(f"[{icon}] **{c['entity'].upper()}** -- {c['direction']} ({c['n_sources']} sources, avg {c['mean_score']:+.2f})")
-            if not consensus_list:
-                st.info("No strong consensus.")
+        with col_trades:
+            st.subheader("Trade Signals")
 
-            # Divergences
-            st.markdown("**Divergences**")
-            for d in divergences[:3]:
-                st.warning(f"**{d['entity'].upper()}** -- {d['doc_a']} ({d['score_a']:+.2f}) vs {d['doc_b']} ({d['score_b']:+.2f}) | delta={d['delta']:.2f}")
-            if not divergences:
-                st.warning("No major divergences.")
-
-            # Trades from corpus
-            st.markdown("**Explicit Trades**")
+            st.markdown("##### Explicit Trades")
             all_explicit = []
             for a in analyses_f:
                 if a["trade_signal"] == "explicit" and a.get("summary_json"):
@@ -256,11 +276,18 @@ with tab1:
                             all_explicit.append({"source": a.get("source","?"), "text": b["text"]})
             if all_explicit:
                 for t in all_explicit[:4]:
-                    st.success(f"**{t['source']}** -- {t['text'][:120]}")
+                    src_short = t["source"][:20] if t["source"] else "?"
+                    st.markdown(
+                        f'<div style="border-left:4px solid #ef4444;padding:6px 12px;margin:4px 0;'
+                        f'background:rgba(239,68,68,0.05);border-radius:4px">'
+                        f'<b>{src_short}</b><br>'
+                        f'<span style="font-size:0.9em">{t["text"][:150]}</span>'
+                        f'</div>', unsafe_allow_html=True
+                    )
             else:
-                st.success("No explicit trades detected.")
+                st.info("No explicit trades detected.")
 
-            st.markdown("**Implicit Trades**")
+            st.markdown("##### Implicit Trades")
             all_implicit = []
             for a in analyses_f:
                 if a["trade_signal"] in ("explicit","implicit") and a.get("summary_json"):
@@ -270,12 +297,19 @@ with tab1:
                             all_implicit.append({"source": a.get("source","?"), "text": b["text"]})
             if all_implicit:
                 for t in all_implicit[:3]:
-                    st.warning(f"**{t['source']}** -- {t['text'][:120]}")
+                    src_short = t["source"][:20] if t["source"] else "?"
+                    st.markdown(
+                        f'<div style="border-left:4px solid #f59e0b;padding:6px 12px;margin:4px 0;'
+                        f'background:rgba(245,158,11,0.05);border-radius:4px">'
+                        f'<b>{src_short}</b><br>'
+                        f'<span style="font-size:0.9em">{t["text"][:150]}</span>'
+                        f'</div>', unsafe_allow_html=True
+                    )
             else:
-                st.warning("No implicit trades.")
+                st.info("No implicit trades.")
 
-            # Weak signals
-            st.markdown("**Weak Signals**")
+        with col_weak:
+            st.subheader("Weak Signals")
             if not corpus_df.empty:
                 corpus_ents = set(corpus_df["entity"].unique())
                 tweet_kws = set()
@@ -283,10 +317,18 @@ with tab1:
                     mask = tweets_df["text"].str.lower().str.contains(kw, na=False, regex=False)
                     if mask.sum() >= 3:
                         tweet_kws.add(kw)
-                weak = corpus_ents - tweet_kws
-                for w in list(weak)[:2]:
-                    st.info(f"**{w}** -- in corpus, low tweet volume")
-            if corpus_df.empty:
+                weak = sorted(corpus_ents - tweet_kws)
+                if weak:
+                    for w in weak[:5]:
+                        st.markdown(
+                            f'<div style="border-left:4px solid #6366f1;padding:6px 12px;margin:4px 0;'
+                            f'background:rgba(99,102,241,0.05);border-radius:4px">'
+                            f'<b>{w}</b> — in corpus, low tweet volume</div>',
+                            unsafe_allow_html=True
+                        )
+                else:
+                    st.info("All corpus entities have tweet coverage.")
+            else:
                 st.info("Ingest corpus to detect weak signals.")
 
         st.divider()
@@ -382,7 +424,7 @@ with tab2:
 
         # ── Timeline ──────────────────────────────────────────────────────────
         st.subheader(f"Sentiment Timeline -- {len(filtered):,} tweets")
-        tl = (filtered.groupby([filtered["created_at"].dt.floor("H"), "sentiment_label"])
+        tl = (filtered.groupby([filtered["created_at"].dt.floor("h"), "sentiment_label"])
               .size().reset_index(name="count"))
         tl.columns = ["hour","sentiment","count"]
         if not tl.empty:
@@ -613,16 +655,20 @@ with tab3:
             st.subheader("Inter-Document Divergences")
             if not corpus_df.empty:
                 from module2_nlp.analysis.consensus import detect_divergences
+                # Only keep entities mentioned by at least 2 distinct sources
+                ent_src_count = corpus_df.groupby("entity")["source"].nunique()
+                multi_src_entities = set(ent_src_count[ent_src_count >= 2].index)
                 div_signals = [{"entity": r["entity"], "source": r["source"], "score": r["score"]}
-                               for _, r in corpus_df.iterrows()]
-                divs = detect_divergences(div_signals, threshold=0.35)
+                               for _, r in corpus_df.iterrows()
+                               if r["entity"] in multi_src_entities]
+                divs = detect_divergences(div_signals, threshold=0.5)
                 if divs:
-                    div_df = pd.DataFrame(divs)
+                    div_df = pd.DataFrame(divs[:15])  # cap at 15 rows
                     div_df.columns = ["Entity","Bullish Source","Score+","Bearish Source","Score-","Delta"]
                     st.dataframe(div_df.style.background_gradient(subset=["Delta"], cmap="Reds"),
                                  use_container_width=True)
                 else:
-                    st.info("No significant divergences (delta > 0.35).")
+                    st.info("No significant divergences (delta > 0.5).")
 
             # ── Semantic Search ───────────────────────────────────────────────
             st.subheader("Semantic Search")
@@ -784,7 +830,7 @@ with tab4:
 
                         raw_df = results.get("raw_df")
                         if raw_df is not None and len(raw_df) > 1:
-                            fig_sc = px.scatter(raw_df, x="signal", y="fwd_return",
+                            fig_sc = px.scatter(raw_df, x="signal_value", y="forward_return",
                                                 trendline="ols", height=300,
                                                 title="Signal vs Forward Return")
                             st.plotly_chart(fig_sc, use_container_width=True)
