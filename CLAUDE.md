@@ -839,7 +839,7 @@ Voir CLAUDE.md pour la spec complète.
 | 10 | Dashboard Tab 2 — Tweet Intelligence | `dashboard/app.py` | ✅ DONE |
 | 11 | Dashboard Tab 3 — Corpus Analysis | `dashboard/app.py` | ✅ DONE |
 | 12 | Dashboard Tab 4 — Backtest | `dashboard/app.py` | ✅ DONE |
-| 13 | README + DOCUMENTATION finaux | `README.md`, `DOCUMENTATION.md` | ⬜ TODO |
+| 13 | README + DOCUMENTATION finaux | `README.md`, `DOCUMENTATION.md` | ✅ DONE |
 
 ### Légende statuts
 - ⬜ TODO — pas encore commencé

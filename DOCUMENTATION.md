@@ -126,27 +126,26 @@
 
 | Methode | Description |
 |---|---|
-| `__init__(backend="mock")` | Instancie le bon backend : `MockBackend`, `SnscrapeBackend`, ou `ApiBackend` |
+| `__init__(backend="mock")` | Instancie le bon backend : `CsvBackend`, `MockBackend`, `SnscrapeBackend`, ou `ApiBackend` |
 | `search(keywords, limit=100)` | Delegue la recherche au backend |
 | `get_user_tweets(username, limit=10)` | Delegue la recuperation par compte |
 
-### `mock_backend.py` — Classe `MockBackend`
+### `csv_backend.py` — Classe `CsvBackend` (backend principal)
 
-~200 tweets synthetiques sur 4 scenarios macro (~30% bruit chacun) :
+Charge `data_tweet/financial_juice_tweets.csv` (607 lignes, 492 exploitables). Source unique FinancialJuice, followers_count=0.
 
-- **S1** : Cessez-le-feu Iran/US -> WTI baissier (Trump 100M, BBCWorld, Reuters)
-- **S2** : Coupe OPEC -> WTI haussier (zerohedge, RaoulGMI)
-- **S3** : Inflation US -> SPX baissier, Gold haussier
-- **S4** : Tensions Russie -> Gold spike
-
-| Fonction/Methode | Description |
+| Methode | Description |
 |---|---|
-| `_fake_account()` | Genere un username/followers aleatoire via Faker |
-| `_rand_ts(base, spread_hours=48)` | Timestamp aleatoire dans les 48h precedentes |
-| `_make_tweet(author, followers, text, base_ts)` | Construit un dict tweet normalise |
-| `_build_scenario(signal_texts, noise_texts, authority_map, base_ts, n_total=50)` | Genere 50 tweets par scenario |
-| `search(keywords, limit)` | Filtre par mot-cle (case-insensitive) |
+| `__init__()` | Parse CSV, filtre lignes vides et URLs, normalise au format standard |
+| `search(keywords, limit)` | Filtre par mot-cle (case-insensitive). Si keywords vide, retourne tous les tweets |
 | `get_user_tweets(username, limit)` | Filtre par auteur |
+| `get_all()` | Retourne tous les tweets (utilise par le dashboard) |
+
+Format retourne : `{id, created_at, author, followers_count, text, retweet_count, like_count}`
+
+### `mock_backend.py` — Classe `MockBackend` (conserve pour compatibilite)
+
+~200 tweets synthetiques sur 4 scenarios macro. Non utilise dans le dashboard actuel.
 
 ### `api_backend.py` / `snscrape_backend.py`
 
