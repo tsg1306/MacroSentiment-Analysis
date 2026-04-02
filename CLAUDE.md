@@ -835,10 +835,10 @@ Voir CLAUDE.md pour la spec complète.
 | 6 | BERTopic wrapper | `module2_nlp/analysis/topic_model.py` | ✅ DONE |
 | 7 | Consensus/Divergence | `module2_nlp/analysis/consensus.py` | ✅ DONE |
 | 8 | Cross-source alignment | `module2_nlp/analysis/cross_source.py` | ✅ DONE |
-| 9 | Dashboard Tab 1 — Macro Digest | `dashboard/app.py` | ⬜ TODO |
-| 10 | Dashboard Tab 2 — Tweet Intelligence | `dashboard/app.py` | ⬜ TODO |
-| 11 | Dashboard Tab 3 — Corpus Analysis | `dashboard/app.py` | ⬜ TODO |
-| 12 | Dashboard Tab 4 — Backtest | `dashboard/app.py` | ⬜ TODO |
+| 9 | Dashboard Tab 1 — Macro Digest | `dashboard/app.py` | ✅ DONE |
+| 10 | Dashboard Tab 2 — Tweet Intelligence | `dashboard/app.py` | ✅ DONE |
+| 11 | Dashboard Tab 3 — Corpus Analysis | `dashboard/app.py` | ✅ DONE |
+| 12 | Dashboard Tab 4 — Backtest | `dashboard/app.py` | ✅ DONE |
 | 13 | README + DOCUMENTATION finaux | `README.md`, `DOCUMENTATION.md` | ⬜ TODO |
 
 ### Légende statuts

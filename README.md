@@ -17,10 +17,10 @@ Deux sources : 607 tweets FinancialJuice (données réelles) + 14 PDFs macro (Go
 | Analysis — BERTopic topic modeling | ✅ DONE |
 | Analysis — Consensus/Divergence detection | ✅ DONE |
 | Analysis — Cross-source alignment | ✅ DONE |
-| Dashboard — Tab Macro Digest | ⬜ TODO |
-| Dashboard — Tab Tweet Intelligence | ⬜ TODO |
-| Dashboard — Tab Corpus Analysis | ⬜ TODO |
-| Dashboard — Tab Backtest | ⬜ TODO |
+| Dashboard — Tab Macro Digest | ✅ DONE |
+| Dashboard — Tab Tweet Intelligence | ✅ DONE |
+| Dashboard — Tab Corpus Analysis | ✅ DONE |
+| Dashboard — Tab Backtest | ✅ DONE |
 
 ## Setup
 

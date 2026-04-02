@@ -2,22 +2,26 @@
 
 ## 1. `dashboard/`
 
-**Fichier principal : `app.py`** — Dashboard Streamlit avec 4 onglets.
+**Fichier principal : `app.py`** — Macro Intelligence Dashboard Streamlit avec 4 onglets.
 
 | Fonction | Signature | Description |
 |---|---|---|
 | `get_vader()` | `() -> VaderSentiment` | Charge et cache l'analyseur VADER (via `@st.cache_resource`) |
 | `get_finbert()` | `() -> FinBERTSentiment` | Charge et cache l'analyseur FinBERT (via `@st.cache_resource`) |
 | `get_analyzer(model_name)` | `(str) -> VaderSentiment \| FinBERTSentiment` | Retourne le bon analyseur selon "FinBERT" ou "VADER" |
-| `color_label(val)` | `(str) -> str` | CSS vert/rouge/neutre pour styliser les labels sentiment dans les DataFrames |
-| `color_score(val)` | `(str) -> str` | Idem, utilisee dans Tab 3 |
+| `load_enriched_tweets(model)` | `(str) -> list[dict]` | Charge CSV tweets, applique sentiment + consensus classification. Cache 5min |
+| `run_bertopic(texts)` | `(tuple) -> tuple` | Fit BERTopic KMeans sur tweets. Cache 5min. Retourne (topics, labels, model) |
+| `load_corpus_signals()` | `() -> list[dict]` | Charge entity sentiments depuis SQLite (join documents). Cache 10min |
+| `load_doc_signals()` | `() -> list[dict]` | Charge document signals agreges depuis SQLite. Cache 10min |
+| `_short_source(source)` | `(str) -> str` | Raccourcit un nom de fichier PDF pour l'affichage |
+| `_color_label(val)` | `(str) -> str` | CSS vert/rouge/neutre pour styliser les labels sentiment |
 
-**4 Onglets :**
+**4 Onglets (redesign 2026-04-02) :**
 
-- **Tab 1 — Twitter Live Signal** : 3 gauges Plotly (1h/4h/24h), line chart signal vs prix, dataframe tweets, pie chart + bar chart mots
-- **Tab 2 — Twitter Backtest** : KPIs, forward returns par bucket, rolling correlation, confusion matrix, scatter signal vs return, accuracy par quintile
-- **Tab 3 — Document Analyzer** : Upload PDF / URL / texte / mock -> heatmap entites, top 3 alertes, bar chart entites, texte annote
-- **Tab 4 — Document Backtest** : Identique a Tab 2 mais sur les signaux documents
+- **Tab 1 — Macro Digest** : 5 KPIs (tweets, docs, topics, consensus, divergences) + heatmap entites x sources (RdYlGn) + digest narratif (consensus/divergences/signaux faibles) + bar chart cross-source alignment (7 themes)
+- **Tab 2 — Tweet Intelligence** : filtres topic/sentiment/type + timeline sentiment 4h bins + feed pagine 50/page avec badges + topic map BERTopic 2D + barchart keywords par topic
+- **Tab 3 — Corpus Analysis** : heatmap documents x entites + bar chart themes (Oil/Rates/Geopolitics/Equities) + signaux emergents (hors taxonomy) + tableau divergences inter-docs + recherche semantique ChromaDB + bouton re-ingest
+- **Tab 4 — Backtest** : radio Tweets/Corpus + selectbox asset/entite + slider horizon + KPIs (accuracy, Pearson, Spearman) + forward returns buckets + rolling correlation + scatter OLS
 
 ---
 
