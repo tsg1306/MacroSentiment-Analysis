@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "sentiment_platform"
+version = "0.1.0"
+description = "Sentiment Trading Platform"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+include = ["shared*", "module1_twitter*", "module2_nlp*", "dashboard*", "tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
