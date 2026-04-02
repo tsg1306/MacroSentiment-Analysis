@@ -102,6 +102,18 @@ class CorpusIngested(Base):
     ingested_at = Column(DateTime, default=datetime.utcnow)
 
 
+class DocumentAnalysis(Base):
+    __tablename__ = "document_analysis"
+    doc_id         = Column(Text, ForeignKey("documents.id"), primary_key=True)
+    domains        = Column(Text)   # JSON list ex: '["Macro / Rates", "Oil / Energy"]'
+    primary_domain = Column(Text)
+    stance         = Column(Text)   # institutional | investor | research_note
+    trade_signal   = Column(Text)   # explicit | implicit | none
+    explicit_count = Column(Integer, default=0)
+    implicit_count = Column(Integer, default=0)
+    summary_json   = Column(Text)   # JSON list of {text, type}
+
+
 # ── Init ──────────────────────────────────────────────────────────────────────
 
 def init_db():
@@ -259,5 +271,75 @@ def mark_file_ingested(filename: str):
     except Exception:
         session.rollback()
         raise
+    finally:
+        session.close()
+
+
+def save_document_analysis(record: dict):
+    """Upsert document analysis record."""
+    session = get_session()
+    try:
+        existing = session.get(DocumentAnalysis, record["doc_id"])
+        if existing is None:
+            session.add(DocumentAnalysis(**record))
+        else:
+            for k, v in record.items():
+                setattr(existing, k, v)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def get_document_analysis(doc_id: str) -> dict | None:
+    session = get_session()
+    try:
+        row = session.get(DocumentAnalysis, doc_id)
+        if row is None:
+            return None
+        return {c.name: getattr(row, c.name) for c in DocumentAnalysis.__table__.columns}
+    finally:
+        session.close()
+
+
+def get_all_document_analyses(
+    domain_filter: list = None,
+    stance_filter: str = None,
+    trade_filter: str = None,
+) -> list:
+    """Returns all document analyses with optional filters."""
+    import json
+    session = get_session()
+    try:
+        q = session.query(DocumentAnalysis, Document).outerjoin(
+            Document, DocumentAnalysis.doc_id == Document.id
+        )
+        rows = q.all()
+        results = []
+        for da, doc in rows:
+            domains = json.loads(da.domains or "[]")
+            if domain_filter and not any(d in domains for d in domain_filter):
+                continue
+            if stance_filter and da.stance != stance_filter:
+                continue
+            if trade_filter and da.trade_signal != trade_filter:
+                continue
+            results.append({
+                "doc_id":         da.doc_id,
+                "title":          doc.title if doc else None,
+                "source":         doc.source if doc else None,
+                "doc_type":       doc.doc_type if doc else None,
+                "published_at":   doc.published_at if doc else None,
+                "domains":        domains,
+                "primary_domain": da.primary_domain,
+                "stance":         da.stance,
+                "trade_signal":   da.trade_signal,
+                "explicit_count": da.explicit_count,
+                "implicit_count": da.implicit_count,
+                "summary_json":   da.summary_json,
+            })
+        return results
     finally:
         session.close()
