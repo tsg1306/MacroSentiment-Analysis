@@ -841,6 +841,20 @@ Voir CLAUDE.md pour la spec complète.
 | 12 | Dashboard Tab 4 — Backtest | `dashboard/app.py` | ✅ DONE |
 | 13 | README + DOCUMENTATION finaux | `README.md`, `DOCUMENTATION.md` | ✅ DONE |
 
+### v2 Redesign — Tasks A-G
+> Plan : `docs/superpowers/plans/2026-04-02-macro-intel-v2-implementation.md`
+> Spec : `docs/superpowers/specs/2026-04-02-macro-intel-v2-redesign.md`
+
+| # | Tâche | Fichiers clés | Statut |
+|---|-------|--------------|--------|
+| A | DocumentAnalysis table + CRUD | `shared/db/database.py` | ✅ DONE |
+| B | Document classifier (7 themes + stance + trade) | `module2_nlp/analysis/document_classifier.py` | ✅ DONE |
+| C | Extractive summarizer (TF-IDF, 10 bullets) | `module2_nlp/analysis/summarizer.py` | ✅ DONE |
+| D | Ingest script v2 (classifier + summarizer) | `scripts/ingest_corpus.py` | ✅ DONE |
+| E | Dashboard rewrite Tabs 1-2 (Macro Digest + Tweet Intel) | `dashboard/app.py` | ✅ DONE |
+| F | Dashboard rewrite Tabs 3-4 (Corpus Analysis + Backtest) | `dashboard/app.py` | ✅ DONE |
+| G | Final README + CLAUDE.md update | `README.md`, `CLAUDE.md` | ✅ DONE |
+
 ### Légende statuts
 - ⬜ TODO — pas encore commencé
 - 🔄 IN PROGRESS — en cours

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-ingest_corpus.py -- Parse PDFs from data_corpus/, chunk, embed into ChromaDB, and
-run NLP pipeline (NER + sentiment) into SQLite.
+ingest_corpus.py -- Parse PDFs from data_corpus/, chunk, embed into ChromaDB,
+run NLP pipeline (NER + sentiment) into SQLite, classify domains/stance/trade,
+generate extractive summaries, and save document_analysis records.
 
 Usage:
     python scripts/ingest_corpus.py                  # ingest new files only
@@ -12,6 +13,7 @@ Usage:
 import argparse
 import glob
 import hashlib
+import json
 import os
 import sys
 import time
@@ -28,44 +30,40 @@ from shared.db.database import (
     init_db,
     get_ingested_files,
     mark_file_ingested,
+    save_document_analysis,
     get_session,
 )
-from shared.db.database import CorpusIngested
+from shared.db.database import CorpusIngested, DocumentAnalysis
 from module2_nlp.ingestion.pdf_parser import PdfParser
 from module2_nlp.nlp.chunker import chunk_text
 from module2_nlp.nlp.pipeline import process_document
 from module2_nlp.analysis.corpus_store import ingest_chunks, delete_collection
+from module2_nlp.analysis.document_classifier import classify_document
+from module2_nlp.analysis.summarizer import generate_summary
 
 
 # ---------------------------------------------------------------------------
 # Heuristic to guess doc_type from filename
 # ---------------------------------------------------------------------------
 
+_DOC_TYPE_RULES = [
+    (["fomc", "federal reserve", "fed minutes"], "fomc_minutes"),
+    (["earnings", "q1 ", "q2 ", "q3 ", "q4 "], "earnings_call"),
+    (["howell", "campbell", "bexelius", "cascade"], "hedge_fund_letter"),
+    (["goldman", "bofa", "natixis", "macquarie",
+      "canaccord", "cavendish", "dbs", "seb", "bof"], "research_note"),
+]
+
+
 def guess_doc_type(filename: str) -> str:
     """
-    Derive a doc_type from the PDF filename using simple keyword heuristics.
+    Derive a doc_type from the PDF filename using keyword heuristics.
     Falls back to 'research_note' since the corpus is mostly research PDFs.
     """
     name = filename.lower()
-
-    # Check for news-like patterns first
-    if any(kw in name for kw in ("inflation", "war", "gold")):
-        return "news"
-
-    # Everything else in our corpus is a research note of some kind
-    if any(kw in name for kw in (
-        "weekly", "wrap", "week_ahead",
-        "sector", "oil", "gas", "energy", "cascade",
-        "company_update", "pharmaceuticals",
-        "musings", "reflections",
-        "macro", "fed", "insights",
-        "markets", "market",
-        "nuclear", "landscape",
-        "spaces", "upcoming",
-        "strategy", "desk",
-    )):
-        return "research_note"
-
+    for keywords, doc_type in _DOC_TYPE_RULES:
+        if any(kw in name for kw in keywords):
+            return doc_type
     return "research_note"
 
 
@@ -74,9 +72,10 @@ def guess_doc_type(filename: str) -> str:
 # ---------------------------------------------------------------------------
 
 def clear_corpus_ingested_table():
-    """Delete all rows from the corpus_ingested table."""
+    """Delete all rows from the corpus_ingested and document_analysis tables."""
     session = get_session()
     try:
+        session.query(DocumentAnalysis).delete()
         session.query(CorpusIngested).delete()
         session.commit()
     except Exception:
@@ -173,7 +172,7 @@ def ingest(force: bool = False, model: str = "vader"):
             ingest_chunks(chunks, metadatas, doc_id)
 
             # 7. Run NLP pipeline (NER + sentiment -> SQLite)
-            process_document(
+            pipeline_result = process_document(
                 text,
                 file_type="pdf",
                 doc_type=doc_type,
@@ -183,13 +182,37 @@ def ingest(force: bool = False, model: str = "vader"):
                 published_at=doc.get("published_at"),
             )
 
-            # 8. Mark as ingested in SQLite
+            # 8. Document classification (domain + stance + trade signals)
+            classification = classify_document(text, filename)
+
+            # 9. Extractive summary (10 bullets max)
+            bullets = generate_summary(text, max_bullets=10)
+
+            # 10. Save document_analysis record
+            save_document_analysis({
+                "doc_id":         doc_id,
+                "domains":        json.dumps(classification["domains"]),
+                "primary_domain": classification["primary_domain"],
+                "stance":         classification["stance"],
+                "trade_signal":   classification["trade_signal"],
+                "explicit_count": len(classification["explicit_trades"]),
+                "implicit_count": len(classification["implicit_trades"]),
+                "summary_json":   json.dumps(bullets),
+            })
+
+            # 11. Mark as ingested in SQLite
             mark_file_ingested(filename)
 
             elapsed = time.time() - t0
             total_chunks += len(chunks)
             ingested_count += 1
+            n_entities = len(pipeline_result.get("signals", {}))
             print(f"  Ingested: {filename} ({len(chunks)} chunks, {elapsed:.1f}s)")
+            print(f"    domain={classification['primary_domain']}, "
+                  f"stance={classification['stance']}, "
+                  f"trade={classification['trade_signal']}, "
+                  f"entities={n_entities}, "
+                  f"bullets={len(bullets)}")
 
         except Exception as exc:
             print(f"  ERROR processing {filename}: {exc}")

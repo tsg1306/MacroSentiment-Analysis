@@ -24,6 +24,11 @@ Dashboard Streamlit unifie avec 4 onglets : Macro Digest, Tweet Intelligence, Co
 | Dashboard — Tab Tweet Intelligence | ✅ DONE |
 | Dashboard — Tab Corpus Analysis | ✅ DONE |
 | Dashboard — Tab Backtest | ✅ DONE |
+| v2 — Document classification (7 themes TF-IDF) | ✅ DONE |
+| v2 — Stance detection (institutional/investor/research) | ✅ DONE |
+| v2 — Trade extraction (explicit/implicit) | ✅ DONE |
+| v2 — Extractive summarizer (10 bullets, priority) | ✅ DONE |
+| v2 — Dashboard rewrite (trades, summaries, filters) | ✅ DONE |
 
 ## Quick Start
 
@@ -41,7 +46,8 @@ cp .env.example .env
 # 3. Init DB + ingest corpus
 python -c "from shared.db.database import init_db; init_db()"
 python scripts/ingest_corpus.py
-# -> Parse 14 PDFs, ~630 chunks dans ChromaDB, ~2372 entites dans SQLite
+# -> Parse 14 PDFs, ~630 chunks dans ChromaDB, ~2786 entites dans SQLite
+# -> Classifie chaque doc : domain, stance, trade signals, 10-bullet summary
 # -> Duree : 2-5 min selon hardware (NER spaCy + embeddings)
 
 # 4. Lancer le dashboard
@@ -55,6 +61,7 @@ Vue synthetique en 60 secondes :
 - **5 KPIs** : tweets analyses, docs ingeres, topics detectes, consensus, divergences
 - **Heatmap entites x sources** : sentiment par entite (Oil, Gold, Fed, ECB...) croise avec les 14 docs + tweets
 - **Digest narratif** : consensus views (top 3), divergences (top 3), signaux faibles
+- **Explicit/Implicit Trades** : extraction automatique des recommandations trade depuis les 14 docs
 - **Cross-source alignment** : score d'alignement tweets vs corpus par theme (0-1)
 
 ### Tab 2 — Tweet Intelligence
@@ -66,10 +73,10 @@ Exploration interactive des 607 tweets :
 
 ### Tab 3 — Corpus Analysis
 Analyse des 14 documents macro :
-- **Heatmap docs x entites** : score sentiment par document et entite trackee
-- **Scores thematiques** : Oil/Energy, Rates/Macro, Geopolitics, Equities
-- **Signaux emergents** : entites hors taxonomy par frequence de mention
-- **Divergences inter-docs** : tableau Entity | Doc A | Score A | Doc B | Score B | delta
+- **Heatmap docs x entites** : score sentiment par document et entite trackee, badges trade [X]/[I]
+- **Document summaries** : 10-bullet extractive summary par document, triees par type (explicit > implicit > info)
+- **Filtres** : stance (institutional/investor/research), trade signal (explicit/implicit/none), domaine (7 themes)
+- **Divergences inter-docs** : tableau Entity | Bullish Source | Score+ | Bearish Source | Score- | Delta
 - **Recherche semantique** : query texte libre -> top 5 passages ChromaDB (cosine similarity)
 - **Bouton re-ingest** : relance le parsing si nouveaux PDFs ajoutes
 
@@ -130,6 +137,8 @@ sentiment_platform/
 │   ├── nlp/                               # Chunker + NER + Pipeline
 │   ├── signal/                            # Aggregator multi-docs
 │   └── analysis/                          # BERTopic + Consensus + Cross-source + ChromaDB
+│       ├── document_classifier.py         # 7-theme TF-IDF + stance + trade extraction
+│       └── summarizer.py                  # Extractive summary (TF-IDF sentence ranking)
 ├── dashboard/
 │   └── app.py                             # Streamlit 4 tabs
 ├── scripts/
@@ -145,6 +154,7 @@ sentiment_platform/
 | Embeddings | sentence-transformers/all-MiniLM-L6-v2 (384 dims, 80MB) |
 | Topic modeling | BERTopic + KMeans (sklearn) |
 | Vector store | ChromaDB (persist_directory) |
+| Document classification | TF-IDF keyword scoring, 7 themes, lexical stance/trade markers |
 | Consensus/divergence | Marqueurs lexicaux + variance inter-sources + cosine similarity |
 | Prix marche | yfinance (>=1h) + Alpha Vantage (<1h) |
 | DB metadata | SQLite via SQLAlchemy |
