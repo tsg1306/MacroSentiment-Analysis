@@ -1,78 +1,147 @@
-# Notes — Choix techniques & arbitrages
+# Notes — Choix techniques et arbitrages
 
 ## Contexte
-Prototype d'analyse macro combinant flux tweets FinancialJuice (607 tweets, 4 jours)
-et corpus de 14 documents financiers (Goldman Sachs, BofA, Macquarie, Natixis, SEB…).
-Contrainte : zéro LLM payant / API externe. Tout tourne en local.
 
-## Arbitrages principaux
+Prototype d'analyse macro combinant un flux de tweets FinancialJuice (492 tweets exploitables sur 4 jours) et un corpus de 14 documents macro PDF (Goldman Sachs, BofA, Natixis, Macquarie, SEB, etc.).
 
-### 1. BERTopic pour le topic modeling des tweets
+Contrainte : zero LLM payant / API externe. Tout tourne en local.
+
+---
+
+## 1. Combinaison flux court + corpus long
+
+**Approche retenue :** Espace vectoriel partage (all-MiniLM-L6-v2) pour les deux sources. Chaque source est traitee par son pipeline propre, mais les embeddings sont dans le meme espace vectoriel, ce qui permet :
+
+- La **recherche semantique cross-source** (un tweet peut trouver le passage corpus le plus proche)
+- Le **calcul d'alignement** tweets vs corpus par theme (cosine similarity entre embeddings moyens)
+- La **detection de signaux faibles** : entites presentes dans le corpus mais peu/pas couvertes par les tweets
+
+**Pourquoi pas un seul pipeline unifie ?** Les tweets et les documents ont des caracteristiques tres differentes (longueur, bruit, vocabulaire). Les tweets passent par un preprocesseur specifique (URLs, mentions, synonymes) avant l'analyse de sentiment. Les documents passent par chunking + NER + classification thematique. L'unification se fait au niveau du dashboard.
+
+---
+
+## 2. Sentiment : FinBERT principal, VADER en fallback
+
+**FinBERT (ProsusAI/finbert)** : fine-tune sur 4.9M phrases financieres. Beaucoup plus precis que VADER sur le vocabulaire macro (hawkish/dovish, tightening/easing, risk-on/risk-off...).
+
+**VADER** : enrichi avec 12 termes financiers (bullish +3, crash -3.5, surge +2.5...). Utile comme fallback instantane (pas de GPU, pas de download HuggingFace).
+
+**Choix par defaut :** Le sidebar du dashboard permet de switcher. VADER est le defaut (plus rapide, fonctionne offline). FinBERT est recommande pour une analyse plus fine.
+
+---
+
+## 3. Topic modeling : BERTopic + KMeans
+
 **Retenu :** BERTopic avec KMeans (n_clusters=8, sklearn)
-**Écarté :** LDA, NMF classique, HDBSCAN (pas de wheel Windows/Python 3.14)
-**Raison :** BERTopic produit des topics sémantiquement cohérents sur des textes courts,
-et inclut des visualisations Plotly natives (carte 2D, barchart). Sur 607 tweets finance,
-les topics émergent naturellement (Oil/Iran, ECB/Rates, Geopolitics, China/PBOC…).
-**Note :** KMeans remplace HDBSCAN car pas de wheel précompilé pour l'environnement.
-Impact : nombre de topics fixe (8) au lieu d'adaptatif. Extension : installer MSVC
-Build Tools + `pip install hdbscan` pour revenir à HDBSCAN.
 
-### 2. sentence-transformers `all-MiniLM-L6-v2` pour les embeddings
-**Retenu :** all-MiniLM-L6-v2 (80MB, local)
-**Écarté :** text-embedding-ada-002 (OpenAI, payant), TF-IDF pur
-**Raison :** Espace vectoriel partagé tweets ↔ corpus → comparaison cross-source
-directe par cosine similarity. Modèle léger, inference en <2s sur 607 tweets CPU-only.
+**Ecarte :** LDA (mauvais sur textes courts), NMF classique, HDBSCAN (pas de wheel Windows/Python 3.14)
 
-### 3. ChromaDB avec persist_directory pour le corpus
-**Retenu :** ChromaDB local persisté (shared/db/chroma/)
-**Écarté :** Faiss (pas de persistance native), Pinecone/Weaviate (cloud)
-**Raison :** Ingest one-shot, lecture instantanée au redémarrage. Recherche sémantique
-sur le corpus sans LLM pour la Q&A. Supporte les métadonnées (source, doc_type).
+**Raison :** BERTopic produit des topics semantiquement coherents sur des textes courts (tweets de 1-2 phrases). Les topics emergent naturellement : Oil/Iran, ECB/Rates, Geopolitics, China/PBOC, etc.
 
-### 4. Pipeline d'ingest séparé (script CLI) vs smart-cache automatique
+**Note :** KMeans remplace HDBSCAN car pas de wheel precompile pour l'environnement. Impact : nombre de topics fixe (8) au lieu d'adaptatif. Extension : `pip install hdbscan` apres installation MSVC Build Tools.
+
+---
+
+## 4. Embeddings : all-MiniLM-L6-v2
+
+**Retenu :** sentence-transformers all-MiniLM-L6-v2 (384 dims, ~80MB)
+
+**Ecarte :** text-embedding-ada-002 (OpenAI, payant), TF-IDF pur (pas d'espace semantique partage)
+
+**Raison :** Modele leger, inference en <2s sur 492 tweets CPU-only. Espace vectoriel partage tweets/corpus permettant la comparaison cross-source directe par cosine similarity.
+
+---
+
+## 5. Vector store : ChromaDB local
+
+**Retenu :** ChromaDB avec persist_directory (`shared/db/chroma/`)
+
+**Ecarte :** Faiss (pas de persistance native), Pinecone/Weaviate (cloud/payant)
+
+**Raison :** Ingest one-shot, lecture instantanee au redemarrage. Recherche semantique sur le corpus sans LLM. Supporte les metadonnees (source, doc_type, chunk_index). ~630 chunks indexes.
+
+---
+
+## 6. Classification thematique des documents (7 domaines)
+
+**Approche :** Score TF-IDF par dictionnaire de mots-cles pour chaque theme. Seuil = 2.0 (score = keyword_count / total_words * 1000). Multi-label : un document peut appartenir a plusieurs domaines.
+
+**7 themes :**
+- Macro / Rates (inflation, fed, ecb, rates, yield...)
+- Oil / Energy (crude, opec, barrel, pipeline...)
+- Geopolitics (war, sanctions, iran, nuclear...)
+- Equities / Risk (stocks, s&p, earnings, recession...)
+- China / EM (pboc, yuan, tariff, emerging...)
+- Europe / FX (euro, ecb, eurozone, bund...)
+- Sector / Other (fallback)
+
+**Pourquoi pas un LLM pour classifier ?** Le TF-IDF par dictionnaire est interpretable, reproductible, et zero-cost. Sur des documents financiers avec un vocabulaire specifique, les keywords sont suffisamment discriminants. Un LLM serait plus robuste mais ajoute latence + cout + non-determinisme.
+
+---
+
+## 7. Detection de stance et trade signals
+
+**Stance** (institutional / investor / research_note) : marqueurs lexicaux ("we forecast", "our estimate" -> institutional ; "i am long", "our position" -> investor). Simple et interpretable.
+
+**Trade signals** par phrase :
+- **Explicit** : "overweight", "target price", "we buy", "outperform"...
+- **Implicit** : "attractive", "compelling", "upside", "we prefer"...
+
+Les marqueurs explicites ont ete resserres pour eviter les faux positifs sur les mentions de prix historiques (ex: "sell-off" ou "long-term" ne matchent plus). La classification se fait phrase par phrase pour isoler les recommandations.
+
+---
+
+## 8. Resume extractif (10 bullets)
+
+**Approche :** TF-IDF sentence ranking + tri par priorite (explicit > implicit > info).
+
+**Pourquoi extractif et pas abstractif ?** Sur un prototype sans LLM generatif, l'extraction garantit la fidelite au texte original. Les phrases sont selectionnees par score TF-IDF (importance informationnelle) et classees par type de signal. Un trader peut lire les 10 bullets et avoir l'essentiel du document en 30 secondes.
+
+---
+
+## 9. Consensus / divergence detection
+
+**3 couches complementaires :**
+
+1. **Marqueurs lexicaux** sur tweets : dictionnaire consensus/divergence/signal faible
+2. **Variance inter-sources** sur meme entite : si std > 0.3 sur les scores de sentiment de la meme entite entre les documents -> divergence
+3. **Cosine similarity cross-source** : tweets vs corpus par theme (score [0-1])
+
+**Pourquoi pas un seul mecanisme ?** Les tweets et les documents expriment le consensus/la divergence differemment. Un tweet peut explicitement dire "markets are split on..." (marqueur lexical). Deux documents peuvent avoir des scores opposes sur "oil" sans jamais le dire explicitement (variance). Le croisement tweets/corpus detecte les themes ou les deux sources sont desalignees.
+
+---
+
+## 10. Pipeline d'ingestion : script CLI + idempotence
+
 **Retenu :** Script `scripts/ingest_corpus.py` + table `corpus_ingested` SQLite
-**Écarté :** Hash-check automatique au démarrage dashboard (trop complexe, risque de bug)
-**Raison :** Fiabilité > élégance sur un prototype 6h. Le script est idempotent
-(skip les fichiers déjà ingérés), appelable via bouton dans le dashboard.
-Ajouter un PDF = relancer le script, simple et traçable.
 
-### 5. FinBERT comme modèle principal, VADER en fallback
-**Retenu :** FinBERT (ProsusAI/finbert) pour sentiment
-**Raison :** Fine-tuné sur 4,9M phrases financières. Beaucoup plus précis que VADER
-sur le vocabulaire macro (hawkish, dovish, tightening…). Le singleton est déjà
-implémenté dans le projet.
+**Ecarte :** Hash-check automatique au demarrage dashboard (risque de bug, complexe)
 
-### 6. Consensus/divergence par règles NLP (sans LLM)
-**Approche :** Trois couches complémentaires :
-- Marqueurs lexicaux (dictionnaire consensus/divergence/signal faible)
-- Variance inter-sources sur même entité (std > 0.3 → divergence)
-- Cosine similarity cross-source (tweets vs corpus par thème)
-**Raison :** Interprétable, explicable au jury, zéro coût, reproductible.
+**Raison :** Fiabilite > elegance sur un prototype. Le script est idempotent (skip les fichiers deja ingeres), appelable depuis le dashboard (Tab 3 -> bouton). Ajouter un PDF = relancer le script.
 
-### 7. Dashboard Streamlit, pas FastAPI + React
-**Raison :** Time-to-demo 10x plus rapide. Audience = traders, pas ingénieurs.
-Pas besoin d'API REST pour un usage en équipe interne de 9 personnes.
+---
 
-### 8. Signal pondéré désactivé pour CSV backend
-**Décision :** Moyenne simple des scores de sentiment au lieu de log(followers) * authority
-**Raison :** Tous les tweets FinancialJuice proviennent d'une source unique avec
-followers_count=0. La pondération log(followers) est inutile et produirait des
-résultats identiques. Le code de pondération est conservé pour les backends mock/api.
+## 11. Dashboard Streamlit, pas FastAPI + React
 
-### 9. Dashboard : données chargées au démarrage, pas à la demande
-**Approche :** `@st.cache_data(ttl=300)` pour les tweets, `@st.cache_data(ttl=600)` pour le corpus
-**Raison :** Évite de recharger 492 tweets + 630 chunks à chaque interaction.
-Le TTL de 5-10 min assure que les données restent fraîches si re-ingest.
+**Raison :** Time-to-demo 10x plus rapide. Pas besoin d'API REST pour un prototype. Streamlit permet le caching (`@st.cache_data`, `@st.cache_resource`), les widgets interactifs, et Plotly pour les visualisations, le tout en un seul fichier Python.
+
+---
+
+## 12. Donnees : caching et performance
+
+- `@st.cache_data(ttl=3600)` pour les tweets et analyses corpus (rechargement si re-ingest)
+- `@st.cache_resource` pour FinBERT et VADER (charges une seule fois)
+- BERTopic fit sur 492 tweets en ~10s -> cache egalement
+
+---
 
 ## Limites connues et extensions naturelles
-- **Ollama (LLM local)** : non inclus dans ce sprint mais l'architecture ChromaDB
-  est prête pour ajouter un RetrievalQA LangChain + llama3.2 en <1h
-- **Tweets statiques** : le CSV est un snapshot. Extension : APScheduler + polling
-  FinancialJuice toutes les 5min
-- **BERTopic** : nécessite ~20+ textes pour des topics stables. 607 tweets = OK.
-  Sur 14 docs corpus, on utilise TF-IDF résiduel à la place.
-- **FinBERT 512 tokens** : chunker existant (200 mots) gère ce cas automatiquement.
-- **KMeans N fixe** : 8 clusters par défaut. Pourrait être optimisé avec silhouette
-  score ou elbow method si le nombre de tweets augmente significativement.
-- **Scalabilité** : SQLite → PostgreSQL en changeant la connection string. ChromaDB
-  supporte des collections de plusieurs millions de chunks.
+
+| Limite | Extension possible |
+|--------|-------------------|
+| Tweets statiques (CSV snapshot) | APScheduler + polling FinancialJuice toutes les 5min |
+| Pas de LLM generatif (Q&A, resume abstractif) | ChromaDB pret pour langchain + ollama (llama3.2) |
+| KMeans N fixe (8 topics) | Silhouette score ou elbow method pour optimiser |
+| FinBERT 512 tokens max | Chunker existant (200 mots) gere ce cas |
+| 4 jours de tweets = backtest non significatif | Sur historique 3-6 mois, metriques deviennent exploitables |
+| SQLite = monothread | PostgreSQL en changeant la connection string |

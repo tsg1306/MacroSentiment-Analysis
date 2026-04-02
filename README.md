@@ -1,167 +1,161 @@
-# Macro Intelligence Dashboard
+# Macro Intelligence — Prototype d'analyse macro multi-sources
 
-Plateforme d'analyse de sentiment macro pour traders. Combine deux sources de donnees reelles :
-- **607 tweets FinancialJuice** (Mar 28-31 2026) — sentiment, topic modeling, consensus/divergence
-- **14 PDFs macro** (Goldman Sachs, BofA, Macquarie, Natixis, SEB...) — NER, sentiment par entite, recherche semantique
+Prototype d'analyse macro combinant un **flux de tweets** et un **corpus de documents financiers** pour produire une lecture synthetique et actionnable de l'actualite macro.
 
-Dashboard Streamlit unifie avec 4 onglets : Macro Digest, Tweet Intelligence, Corpus Analysis, Backtest.
+## Donnees exploitees
 
-## Statut des features
+| Source | Volume | Periode |
+|--------|--------|---------|
+| Tweets FinancialJuice (`data_tweet/`) | ~492 tweets exploitables (607 lignes brutes) | 28-31 Mars 2026 |
+| Corpus macro PDF (`data_corpus/`) | 14 documents (Goldman Sachs, BofA, Macquarie, Natixis, SEB, Canaccord, Cavendish, DBS, etc.) | Mars 2026 |
 
-| Feature | Statut |
-|---|---|
-| Structure monorepo + config | ✅ DONE |
-| DB SQLite (6 tables + CRUD) | ✅ DONE |
-| Shared NLP — VADER + FinBERT (singleton) | ✅ DONE |
-| Backtest Engine (yfinance + Alpha Vantage) | ✅ DONE |
-| Twitter — CSV backend (FinancialJuice) | ✅ DONE |
-| Corpus — ChromaDB store (semantic search) | ✅ DONE |
-| Corpus — Ingest PDFs (ChromaDB + SQLite) | ✅ DONE |
-| Analysis — BERTopic topic modeling (KMeans) | ✅ DONE |
-| Analysis — Consensus/Divergence detection | ✅ DONE |
-| Analysis — Cross-source alignment | ✅ DONE |
-| Dashboard — Tab Macro Digest | ✅ DONE |
-| Dashboard — Tab Tweet Intelligence | ✅ DONE |
-| Dashboard — Tab Corpus Analysis | ✅ DONE |
-| Dashboard — Tab Backtest | ✅ DONE |
-| v2 — Document classification (7 themes TF-IDF) | ✅ DONE |
-| v2 — Stance detection (institutional/investor/research) | ✅ DONE |
-| v2 — Trade extraction (explicit/implicit) | ✅ DONE |
-| v2 — Extractive summarizer (10 bullets, priority) | ✅ DONE |
-| v2 — Dashboard rewrite (trades, summaries, filters) | ✅ DONE |
-
-## Quick Start
+## Lancement rapide
 
 ```bash
-# 1. Clone et install
+# 1. Clone
 git clone https://github.com/tsg1306/MacroSentiment-Analysis.git
 cd sentiment_platform
+
+# 2. Dependances
 pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 
-# 2. Configuration
+# 3. Configuration (optionnel)
 cp .env.example .env
-# Editer .env si besoin (Alpha Vantage key pour backtest <1h)
+# Editer .env si besoin (Alpha Vantage key pour backtest intraday <1h)
 
-# 3. Init DB + ingest corpus
+# 4. Initialisation DB + ingestion du corpus
 python -c "from shared.db.database import init_db; init_db()"
 python scripts/ingest_corpus.py
-# -> Parse 14 PDFs, ~630 chunks dans ChromaDB, ~2786 entites dans SQLite
-# -> Classifie chaque doc : domain, stance, trade signals, 10-bullet summary
-# -> Duree : 2-5 min selon hardware (NER spaCy + embeddings)
+# -> Parse 14 PDFs, ~630 chunks vectorises (ChromaDB), ~2700 entites (SQLite)
+# -> Classifie chaque doc : domaine, stance, trade signals, 10-bullet summary
+# -> Duree : ~3 min (NER spaCy + sentence-transformers embeddings)
 
-# 4. Lancer le dashboard
+# 5. Lancer le dashboard
 streamlit run dashboard/app.py
 ```
 
-## Dashboard — 4 onglets
+## Ce que fait le prototype
 
-### Tab 1 — Macro Digest
-Vue synthetique en 60 secondes :
-- **5 KPIs** : tweets analyses, docs ingeres, topics detectes, consensus, divergences
-- **Heatmap entites x sources** : sentiment par entite (Oil, Gold, Fed, ECB...) croise avec les 14 docs + tweets
-- **Digest narratif** : consensus views (top 3), divergences (top 3), signaux faibles
-- **Explicit/Implicit Trades** : extraction automatique des recommandations trade depuis les 14 docs
-- **Cross-source alignment** : score d'alignement tweets vs corpus par theme (0-1)
+### Pipeline d'analyse automatise
 
-### Tab 2 — Tweet Intelligence
-Exploration interactive des 607 tweets :
-- **Filtres** : topic BERTopic, sentiment, type (consensus/divergence/signal faible)
-- **Timeline** : evolution sentiment par tranches de 4h avec pics d'intensite
-- **Feed pagine** : 50 tweets/page avec badges et scores
-- **Topic Map** : visualisation 2D BERTopic + keywords par topic
+Le pipeline `ingest_corpus.py` enchaine pour chaque document :
 
-### Tab 3 — Corpus Analysis
-Analyse des 14 documents macro :
-- **Heatmap docs x entites** : score sentiment par document et entite trackee, badges trade [X]/[I]
-- **Document summaries** : 10-bullet extractive summary par document, triees par type (explicit > implicit > info)
-- **Filtres** : stance (institutional/investor/research), trade signal (explicit/implicit/none), domaine (7 themes)
-- **Divergences inter-docs** : tableau Entity | Bullish Source | Score+ | Bearish Source | Score- | Delta
-- **Recherche semantique** : query texte libre -> top 5 passages ChromaDB (cosine similarity)
-- **Bouton re-ingest** : relance le parsing si nouveaux PDFs ajoutes
+1. **Parsing PDF** (PyMuPDF) → texte brut
+2. **Chunking** (200 mots, overlap 50) → respecte les limites de phrases
+3. **Vectorisation** (sentence-transformers all-MiniLM-L6-v2) → ChromaDB pour recherche semantique
+4. **NER** (spaCy en_core_web_sm + entites trackees custom) → extraction des entites financieres
+5. **Sentiment par entite** (FinBERT ProsusAI ou VADER) → score [-1, +1] par chunk et entite
+6. **Classification thematique** (TF-IDF, 7 domaines) → Macro/Rates, Oil/Energy, Geopolitics, Equities/Risk, China/EM, Europe/FX, Sector/Other
+7. **Detection de stance** (marqueurs lexicaux) → institutional / investor / research_note
+8. **Extraction de signaux trade** (marqueurs lexicaux par phrase) → explicit / implicit / none
+9. **Resume extractif** (TF-IDF sentence ranking) → 10 bullets, tries par priorite (explicit > implicit > info)
+10. **Persistance** → SQLite (metadata, entites, signaux) + ChromaDB (vecteurs)
 
-### Tab 4 — Backtest
-Validation du pouvoir predictif :
-- **Source** : Tweets CSV ou Corpus Documents
-- **Asset** : WTI, Brent, Gold, SPX, NASDAQ, EUR/USD
-- **Horizon** : 15min a 1 semaine (Alpha Vantage <1h, yfinance >=1h)
-- **Resultats** : Directional Accuracy, Pearson/Spearman r, forward returns par bucket, rolling correlation, scatter + OLS trendline
+Pour les tweets, le pipeline enrichit chaque tweet avec : sentiment, topic (BERTopic), classification consensus/divergence/signal faible.
 
-## Re-ingest corpus
+### Dashboard interactif — 4 onglets
 
-```bash
-# Ajouter un PDF dans data_corpus/, puis :
-python scripts/ingest_corpus.py
-# Le script skip automatiquement les fichiers deja traites.
+#### Tab 1 — Macro Digest
+Vue synthetique combinant les deux sources :
+- **5 KPIs** en un coup d'oeil : tweets analyses, docs ingeres, topics, consensus, divergences
+- **Heatmap entite x source** : sentiment par entite (oil, gold, fed, iran...) croise avec les 14 docs + tweets — top 10 entites les plus mentionnees
+- **Digest en 3 colonnes** :
+  - Consensus Views (entites ou les sources convergent, ex: bearish oil)
+  - Trade Signals (phrases explicites/implicites extraites des docs : "overweight gold", "we prefer...")
+  - Weak Signals (entites presentes dans le corpus mais peu couvertes par les tweets)
+- **Cross-source alignment** : score d'alignement [0-1] entre tweets et corpus par theme, identifie les zones ou les deux sources divergent
 
-# Pour tout re-ingerer :
-python scripts/ingest_corpus.py --force
+#### Tab 2 — Tweet Intelligence
+Exploration interactive du flux :
+- **Filtres** : theme, sentiment, type (consensus/divergence/signal faible), texte libre, dates
+- **Timeline horaire** : evolution du volume par sentiment (positive/negative/neutral)
+- **Feed pagine** : 50 tweets/page avec bordure coloree par sentiment + scores
+- **Panel lateral** : donut sentiment, topic chips colores, top 5 entites mentionnees
 
-# Avec FinBERT au lieu de VADER :
-python scripts/ingest_corpus.py --model finbert
+#### Tab 3 — Corpus Analysis
+Analyse structuree des 14 documents :
+- **Heatmap docs x entites** : score sentiment par document, badges trade [X] explicit / [I] implicit
+- **Summaries expandables** : pour chaque document, 10 bullets extractifs avec code couleur (rouge=explicit trade, jaune=implicit, gris=info)
+- **Filtres** : stance (institutional/investor/research), trade signal, domaine thematique
+- **Divergences inter-docs** : tableau des entites ou les documents divergent (delta > 0.5)
+- **Recherche semantique** : query texte libre → top 5 passages les plus proches (cosine similarity ChromaDB)
 
-# Ou depuis le dashboard : Tab 3 -> bouton "Re-ingest corpus"
+#### Tab 4 — Backtest
+Validation experimentale du pouvoir predictif du sentiment :
+- **Sources** : Tweets CSV ou Corpus Documents
+- **Assets** : WTI, Brent, Gold, SPX, NASDAQ, EUR/USD
+- **Horizons** : 15min a 1 semaine
+- **Resultats** : Directional Accuracy, Pearson/Spearman r, p-value, scatter + OLS trendline, prix + barres de sentiment superposees
+- Note : resultats indicatifs sur 4 jours de donnees, non valides statistiquement
+
+## Architecture
+
 ```
+sentiment_platform/
+├── config.py                              # Config centralisee (assets, seuils, modeles)
+├── shared/
+│   ├── nlp/                               # VADER + FinBERT (singleton)
+│   ├── backtest/                          # PriceClient (yfinance/AV) + BacktestEngine
+│   └── db/                                # SQLite (7 tables) + ChromaDB (chroma/)
+├── module1_twitter/
+│   ├── twitter/                           # CSV backend + client factory
+│   ├── nlp/                               # Preprocessor tweets
+│   └── signal/                            # Signal extractor
+├── module2_nlp/
+│   ├── ingestion/                         # Parsers PDF/HTML/TXT
+│   ├── nlp/                               # Chunker + NER + Pipeline
+│   ├── signal/                            # Aggregator multi-docs
+│   └── analysis/
+│       ├── corpus_store.py                # ChromaDB wrapper (embed, search)
+│       ├── topic_model.py                 # BERTopic + KMeans
+│       ├── consensus.py                   # Consensus / divergence detection
+│       ├── cross_source.py                # Alignement tweets <-> corpus
+│       ├── document_classifier.py         # 7 themes + stance + trade extraction
+│       └── summarizer.py                  # Resume extractif TF-IDF
+├── dashboard/
+│   └── app.py                             # Streamlit 4 tabs
+├── scripts/
+│   └── ingest_corpus.py                   # CLI: ingest PDFs → ChromaDB + SQLite
+├── data_tweet/                            # financial_juice_tweets.csv
+└── data_corpus/                           # 14 PDFs macro
+```
+
+## Stack technique
+
+| Couche | Outil | Justification |
+|--------|-------|---------------|
+| Sentiment | FinBERT (ProsusAI) + VADER | FinBERT fine-tune sur 4.9M phrases financieres, VADER en fallback rapide |
+| Embeddings | all-MiniLM-L6-v2 | 384 dims, 80MB, espace vectoriel partage tweets/corpus |
+| Topic modeling | BERTopic + KMeans | Topics semantiquement coherents sur textes courts |
+| Vector store | ChromaDB (local) | Persistance native, recherche semantique, filtres metadata |
+| NER | spaCy en_core_web_sm + custom | Entites financieres trackees : commodities, macro, geopolitics |
+| Classification docs | TF-IDF keyword scoring | 7 themes, stance par marqueurs lexicaux, trade par phrase |
+| Prix marche | yfinance + Alpha Vantage | yfinance >=1h, Alpha Vantage <1h (intraday) |
+| DB | SQLite (SQLAlchemy) | 7 tables, CRUD idempotent |
+| Dashboard | Streamlit + Plotly | Prototypage rapide, interactivite, rendu pro |
 
 ## Variables d'environnement (.env)
 
 ```env
 TWITTER_BACKEND=csv              # csv | mock | snscrape | api
 ALPHA_VANTAGE_KEY=               # requis si horizon < 1h en backtest
-SENTIMENT_MODEL=vader            # vader | finbert
+SENTIMENT_MODEL=vader            # vader | finbert (defaut sidebar)
 DB_PATH=shared/db/sentiment.db
 ```
 
-## Donnees
+## Re-ingestion du corpus
 
-| Source | Fichiers | Volume |
-|--------|----------|--------|
-| Tweets | `data_tweet/financial_juice_tweets.csv` | 607 lignes, 492 exploitables (Mar 28-31 2026) |
-| Corpus | `data_corpus/*.pdf` | 14 PDFs macro (Goldman, BofA, Macquarie, Natixis, SEB, etc.) |
+```bash
+# Ajouter un PDF dans data_corpus/, puis :
+python scripts/ingest_corpus.py          # incremental (skip fichiers deja traites)
+python scripts/ingest_corpus.py --force  # tout re-ingerer
+python scripts/ingest_corpus.py --model finbert  # avec FinBERT
 
-## Architecture
-
-```
-sentiment_platform/
-├── config.py                              # Config centralisee
-├── shared/
-│   ├── nlp/                               # VADER + FinBERT (singleton)
-│   ├── backtest/                          # PriceClient + BacktestEngine
-│   └── db/                                # SQLite (6 tables) + ChromaDB (chroma/)
-├── module1_twitter/
-│   ├── twitter/                           # CSV backend + client factory
-│   ├── nlp/                               # Preprocessor tweets
-│   └── signal/                            # Signal extractor (log-weighted)
-├── module2_nlp/
-│   ├── ingestion/                         # Parsers PDF/HTML/TXT
-│   ├── nlp/                               # Chunker + NER + Pipeline
-│   ├── signal/                            # Aggregator multi-docs
-│   └── analysis/                          # BERTopic + Consensus + Cross-source + ChromaDB
-│       ├── document_classifier.py         # 7-theme TF-IDF + stance + trade extraction
-│       └── summarizer.py                  # Extractive summary (TF-IDF sentence ranking)
-├── dashboard/
-│   └── app.py                             # Streamlit 4 tabs
-├── scripts/
-│   └── ingest_corpus.py                   # CLI ingest PDFs -> ChromaDB + SQLite
-└── data_tweet/ + data_corpus/             # Donnees reelles
+# Ou depuis le dashboard : Tab 3 → bouton "Re-ingest corpus"
 ```
 
-## Stack technique
+## Documentation complementaire
 
-| Couche | Outil |
-|--------|-------|
-| Sentiment | FinBERT (ProsusAI) + VADER (fallback) |
-| Embeddings | sentence-transformers/all-MiniLM-L6-v2 (384 dims, 80MB) |
-| Topic modeling | BERTopic + KMeans (sklearn) |
-| Vector store | ChromaDB (persist_directory) |
-| Document classification | TF-IDF keyword scoring, 7 themes, lexical stance/trade markers |
-| Consensus/divergence | Marqueurs lexicaux + variance inter-sources + cosine similarity |
-| Prix marche | yfinance (>=1h) + Alpha Vantage (<1h) |
-| DB metadata | SQLite via SQLAlchemy |
-| Dashboard | Streamlit + Plotly |
-
-## Documentation
-
-- `CLAUDE.md` — Spec complete + tracking d'implementation
-- `DOCUMENTATION.md` — Signatures API de tous les modules
-- `notes_choix_techniques.md` — Arbitrages techniques et justifications
+- `notes_choix_techniques.md` — Principaux choix techniques et arbitrages
+- `DOCUMENTATION.md` — Signatures API detaillees de tous les modules

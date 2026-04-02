@@ -111,7 +111,7 @@ def load_corpus_entity_signals() -> pd.DataFrame:
     finally:
         session.close()
 
-def build_entity_heatmap(tweets_df, corpus_df):
+def build_entity_heatmap(tweets_df, corpus_df, max_entities=10):
     from module2_nlp.analysis.cross_source import THEMES
     all_keywords = {kw.lower() for kws in THEMES.values() for kw in kws}
     tweet_recs = []
@@ -128,6 +128,10 @@ def build_entity_heatmap(tweets_df, corpus_df):
     if not parts:
         return pd.DataFrame()
     combined = pd.concat(parts, ignore_index=True)
+    # Keep only top N entities by number of mentions across all sources
+    entity_counts = combined.groupby("entity").size().sort_values(ascending=False)
+    top_entities = entity_counts.head(max_entities).index
+    combined = combined[combined["entity"].isin(top_entities)]
     pivot = combined.groupby(["entity","source"])["score"].mean().reset_index().pivot(
         index="entity", columns="source", values="score")
     cols = [c for c in pivot.columns if c != "Tweets"] + (["Tweets"] if "Tweets" in pivot.columns else [])
