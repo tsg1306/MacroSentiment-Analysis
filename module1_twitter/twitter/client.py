@@ -14,6 +14,9 @@ class TwitterClient:
         elif backend == "api":
             from module1_twitter.twitter.api_backend import ApiBackend
             self.backend = ApiBackend()
+        elif backend == "csv":
+            from module1_twitter.twitter.csv_backend import CsvBackend
+            self.backend = CsvBackend()
         else:
             raise ValueError(f"Unknown backend: {backend}")
 
@@ -22,3 +25,9 @@ class TwitterClient:
 
     def get_user_tweets(self, username, limit=10):
         return self.backend.get_user_tweets(username, limit)
+
+    def get_all(self) -> list:
+        """Returns all tweets — only available for csv backend."""
+        if hasattr(self.backend, 'get_all'):
+            return self.backend.get_all()
+        return []
