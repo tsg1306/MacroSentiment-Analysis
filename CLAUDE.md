@@ -821,9 +821,9 @@ Voir CLAUDE.md pour la spec complète.
 
 | # | Tâche | Fichiers clés | Statut |
 |---|-------|--------------|--------|
-| 0 | Livrables texte (notes, CLAUDE.md, README, DOCUMENTATION) | `notes_choix_techniques.md`, `README.md`, `DOCUMENTATION.md` | ⬜ TODO |
-| 1 | Dépendances | `requirements.txt` | ⬜ TODO |
-| 2 | DB — table `corpus_ingested` | `shared/db/database.py` | ⬜ TODO |
+| 0 | Livrables texte (notes, CLAUDE.md, README, DOCUMENTATION) | `notes_choix_techniques.md`, `README.md`, `DOCUMENTATION.md` | ✅ DONE |
+| 1 | Dépendances | `requirements.txt` | ✅ DONE |
+| 2 | DB — table `corpus_ingested` | `shared/db/database.py` | ✅ DONE |
 | 3 | CSV backend | `module1_twitter/twitter/csv_backend.py`, `client.py` | ⬜ TODO |
 | 4 | Corpus Store (ChromaDB) | `module2_nlp/analysis/corpus_store.py` | ⬜ TODO |
 | 5 | Script ingest PDFs | `scripts/ingest_corpus.py` | ⬜ TODO |

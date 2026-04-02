@@ -1,7 +1,7 @@
-# Sentiment Trading Platform
+# Sentiment Trading Platform — Macro Intelligence
 
-Plateforme d'analyse de sentiment financier pour traders.
-Deux modules : Twitter scraping + NLP documents → signaux actionnables + backtest.
+Plateforme d'analyse de sentiment macro combinant flux Twitter et corpus documentaire.
+Deux sources : 607 tweets FinancialJuice (données réelles) + 14 PDFs macro (Goldman, BofA, etc.)
 
 ## Statut des features
 
@@ -9,25 +9,17 @@ Deux modules : Twitter scraping + NLP documents → signaux actionnables + backt
 |---|---|
 | Structure monorepo + config | ✅ DONE |
 | DB SQLite (5 tables + CRUD) | ✅ DONE |
-| Shared NLP — VADER | ✅ DONE |
-| Shared NLP — FinBERT (singleton) | ✅ DONE |
-| Backtest Price Client (yfinance + AV) | ✅ DONE |
-| Backtest Engine (3 métriques) | ✅ DONE |
-| Twitter — Mock backend | ✅ DONE |
-| Twitter — snscrape backend | ✅ DONE |
-| Twitter — API backend (tweepy) | ✅ DONE |
-| Twitter — Preprocessor | ✅ DONE |
-| Twitter — Signal Extractor | ✅ DONE |
-| NLP Docs — Parsers (PDF/HTML/TXT) | ✅ DONE |
-| NLP Docs — Mock Documents (x6) | ✅ DONE |
-| NLP Docs — Chunker | ✅ DONE |
-| NLP Docs — NER (spaCy + custom) | ✅ DONE |
-| NLP Docs — Pipeline | ✅ DONE |
-| NLP Docs — Signal Aggregator | ✅ DONE |
-| Dashboard — Tab Twitter Live | ✅ DONE |
-| Dashboard — Tab Twitter Backtest | ✅ DONE |
-| Dashboard — Tab Document Analysis | ✅ DONE |
-| Dashboard — Tab Document Backtest | ✅ DONE |
+| Shared NLP — VADER + FinBERT | ✅ DONE |
+| Backtest Engine (yfinance + AV) | ✅ DONE |
+| Twitter — CSV backend (FinancialJuice) | ⬜ TODO |
+| Corpus — Ingest PDFs (ChromaDB + SQLite) | ⬜ TODO |
+| Analysis — BERTopic topic modeling | ⬜ TODO |
+| Analysis — Consensus/Divergence detection | ⬜ TODO |
+| Analysis — Cross-source alignment | ⬜ TODO |
+| Dashboard — Tab Macro Digest | ⬜ TODO |
+| Dashboard — Tab Tweet Intelligence | ⬜ TODO |
+| Dashboard — Tab Corpus Analysis | ⬜ TODO |
+| Dashboard — Tab Backtest | ⬜ TODO |
 
 ## Setup
 
@@ -36,51 +28,41 @@ git clone <repo>
 cd sentiment_platform
 pip install -r requirements.txt
 python -m spacy download en_core_web_sm
-cp .env.example .env        # remplir les clés si nécessaire
+cp .env.example .env
+
+# Init DB
 python -c "from shared.db.database import init_db; init_db()"
+
+# Ingest corpus PDFs (one-shot, ~2-5 min selon hardware)
+python scripts/ingest_corpus.py
+
+# Lancer le dashboard
 streamlit run dashboard/app.py
+```
+
+## Re-ingest si nouveau PDF ajouté
+
+```bash
+# Ajouter le PDF dans data_corpus/, puis :
+python scripts/ingest_corpus.py
+# Le script skip automatiquement les fichiers déjà traités.
+# Ou depuis le dashboard : Tab 3 sidebar → bouton "🔄 Re-ingest corpus"
 ```
 
 ## Variables d'environnement (.env)
 
 ```env
-TWITTER_BACKEND=mock             # mock | snscrape | api
-TWITTER_BEARER_TOKEN=            # requis si backend=api
+TWITTER_BACKEND=csv              # csv | mock | snscrape | api
 ALPHA_VANTAGE_KEY=               # requis si horizon < 1h en backtest
 SENTIMENT_MODEL=vader            # vader | finbert
 DB_PATH=shared/db/sentiment.db
 ```
 
-## Demo rapide
+## Données
 
-```bash
-# Lancer les tests
-pytest tests/ -v
+- `data_tweet/financial_juice_tweets.csv` — 607 tweets FinancialJuice (Mar 28–31 2026)
+- `data_corpus/*.pdf` — 14 documents macro (Goldman Sachs, BofA, Macquarie, Natixis, SEB…)
 
-# Demo end-to-end en CLI
-python -c "
-from module1_twitter.twitter.client import TwitterClient
-from module1_twitter.nlp.preprocessor import clean_tweet
-from module1_twitter.signal.extractor import compute_all_windows
-from shared.nlp.vader_sentiment import VaderSentiment
-from config import ASSETS
+## Architecture
 
-client = TwitterClient('mock')
-vader = VaderSentiment()
-enriched = []
-for asset, cfg in ASSETS.items():
-    for t in client.search(cfg['keywords'], limit=50):
-        clean = clean_tweet(t['text'])
-        r = vader.analyze(clean)
-        enriched.append({**t, 'asset_tag': asset, 'sentiment_score': r['score'], 'sentiment_label': r['label']})
-
-signals = compute_all_windows(enriched, 'WTI')
-for k, v in signals.items():
-    print(f'WTI {k}: {v[\"signal\"]:+.4f} ({v[\"tweet_count\"]} tweets)')
-"
-
-# Lancer le dashboard
-python -m streamlit run dashboard/app.py
-```
-
-
+Voir `CLAUDE.md` pour la spec complète et `notes_choix_techniques.md` pour les arbitrages.

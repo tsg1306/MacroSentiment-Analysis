@@ -96,6 +96,12 @@ class DocumentSignal(Base):
     published_at = Column(DateTime, nullable=True)
 
 
+class CorpusIngested(Base):
+    __tablename__ = "corpus_ingested"
+    filename = Column(Text, primary_key=True)
+    ingested_at = Column(DateTime, default=datetime.utcnow)
+
+
 # ── Init ──────────────────────────────────────────────────────────────────────
 
 def init_db():
@@ -228,5 +234,30 @@ def get_all_entities():
     try:
         rows = session.query(DocumentSignal.entity).distinct().all()
         return [r[0] for r in rows]
+    finally:
+        session.close()
+
+
+def get_ingested_files() -> set:
+    """Returns set of filenames already processed by ingest_corpus.py."""
+    session = get_session()
+    try:
+        rows = session.query(CorpusIngested.filename).all()
+        return {r[0] for r in rows}
+    finally:
+        session.close()
+
+
+def mark_file_ingested(filename: str):
+    """Mark a PDF filename as ingested. Idempotent."""
+    session = get_session()
+    try:
+        existing = session.get(CorpusIngested, filename)
+        if existing is None:
+            session.add(CorpusIngested(filename=filename))
+            session.commit()
+    except Exception:
+        session.rollback()
+        raise
     finally:
         session.close()
